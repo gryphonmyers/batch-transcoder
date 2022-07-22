@@ -1,17 +1,47 @@
 import os from 'os';
 import path, { dirname } from 'path';
-import { mkdir, readdir, stat } from "fs/promises";
-import { createReadStream, createWriteStream } from 'fs';
+import { mkdir, readdir, stat, access } from "fs/promises";
+import { createReadStream, createWriteStream, constants } from 'fs';
 import PQueue from 'p-queue';
 import Transcoder from "stream-transcoder";
 
-async function transcodeMkvFile(pathArr, outputDir) {
+async function transcodeMkvFile(pathArr, outputRootDir) {
     const inputFilePath = path.join(...pathArr);
-    const inputFileOutputPath = path.join(...[outputDir, ...pathArr.slice(1)]);
+    const inputFileOutputPath = path.join(...[outputRootDir, ...pathArr.slice(1)]);
     const parsed = path.parse(inputFileOutputPath);
     const outputFilePath = path.format({ dir: parsed.dir, name: parsed.name, ext: '.mp4' });
+    const outputDir = dirname(outputFilePath);
 
-    await mkdir(dirname(outputFilePath), { recursive: true });
+    let doesExist = false;
+    
+    try {
+        await access(outputFilePath, constants.F_OK)
+        doesExist = true;
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            throw err
+        }
+    }
+
+    if (doesExist) {
+        console.log(outputFilePath, 'already exists. Skipping');
+        return { inputFilePath, outputFilePath, didTranscode: false }
+    }
+
+    let dirDoesExist = false;
+
+    try {
+        await access(outputDir, constants.F_OK)
+        dirDoesExist = true;
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            throw err
+        }
+    }
+
+    if (!dirDoesExist) {
+        await mkdir(outputDir, { recursive: true });
+    }
 
     console.log('Transcoding mkv file', inputFilePath, 'to', outputFilePath);
     
@@ -31,7 +61,7 @@ async function transcodeMkvFile(pathArr, outputDir) {
             .stream().pipe(outputStream);
     })
     
-    return { inputFilePath, outputFilePath }
+    return { inputFilePath, outputFilePath, didTranscode: true }
 }
 
 async function getMkvTranscodeCbsInDir(inputDir, outputDir, transcodedFiles={}) {
@@ -54,9 +84,11 @@ async function getMkvTranscodeCbsInDir(inputDir, outputDir, transcodedFiles={}) 
 
         } else if (path.extname(file) == '.mkv') {
             transcodeJobs.push(async () => {
-                const { inputFilePath, outputFilePath } = await transcodeMkvFile([...inputArr, file], outputDir)
+                const { inputFilePath, outputFilePath, didTranscode } = await transcodeMkvFile([...inputArr, file], outputDir)
                 
-                Object.assign(transcodedFiles, { [inputFilePath]: outputFilePath });
+                if (didTranscode) {
+                    Object.assign(transcodedFiles, { [inputFilePath]: outputFilePath });
+                }
             })
         }
     }))
