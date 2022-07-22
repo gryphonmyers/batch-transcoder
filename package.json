@@ -1,7 +1,9 @@
 {
   "name": "@gryphonscripts/batch-transcoder",
-  "version": "1.0.0",
-  "bin": "./cli.js",
+  "version": "1.0.1",
+  "bin": {
+    "batchmkvtranscode": "./cli.js"
+  },
   "description": "",
   "main": "batch-transcode.js",
   "scripts": {
