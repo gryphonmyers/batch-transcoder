@@ -3,16 +3,17 @@
   "version": "1.0.0",
   "bin": "./cli.js",
   "description": "",
-  "main": "index.js",
+  "main": "batch-transcode.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Gryphon Myers",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
     "p-queue": "^7.2.0",
     "stream-transcoder": "^0.0.5",
     "yargs": "^17.5.1"
-  }
+  },
+  "private": false
 }
