@@ -1,9 +1,9 @@
 import os from 'os';
 import path, { dirname } from 'path';
 import { mkdir, readdir, stat, access } from "fs/promises";
-import { createReadStream, createWriteStream, constants } from 'fs';
+import { constants } from 'fs';
 import PQueue from 'p-queue';
-import Transcoder from "stream-transcoder";
+import { spawn } from 'child_process';
 
 async function transcodeMkvFile(pathArr, outputRootDir, fullTranscode) {
     const inputFilePath = path.join(...pathArr);
@@ -46,20 +46,24 @@ async function transcodeMkvFile(pathArr, outputRootDir, fullTranscode) {
     console.log(`${fullTranscode ? 'Transcoding' : 'Re-muxing'} mkv file`, inputFilePath, 'to', outputFilePath);
     
     await new Promise((resolve, reject) => {
-        const inputStream = createReadStream(inputFilePath);
-        const outputStream = createWriteStream(outputFilePath);
+        const child = spawn('ffmpeg', ['-i', inputFilePath, '-c', fullTranscode ? 'h264' : 'copy', outputFilePath], {
+			cwd: os.tmpdir()
+		})
 
-        new Transcoder(inputStream)
-            .videoCodec(fullTranscode ? 'h264' : 'copy')
-            .format('mp4')
-            // .custom('-movflags','+faststart')
-            .on('finish', function() {    
-                resolve()
-            })
-            .on('error', error => {
-                reject(new Error(`Error while processing video file ${inputFilePath}: ${error}`))
-            })
-            .stream().pipe(outputStream);
+        let errOutput = '';
+
+        child.stderr.on('data', function(data) {
+            data=data.toString();
+            errOutput+=data;
+        });
+
+        child.on('close', function(code) {
+            if (code) {
+                return reject(new Error(`ffmpeg error: ${errOutput}`));
+            }
+        
+            resolve();
+        });
     })
     
     return { inputFilePath, outputFilePath, didTranscode: true }
